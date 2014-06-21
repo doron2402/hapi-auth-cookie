@@ -1,4 +1,7 @@
 var Hapi = require('hapi');
+var moment = require('moment');
+var crypto = require("crypto");
+var sha256 = crypto.createHash("sha256");
 
 
 var uuid = 1;       // Use seq instead of proper unique identifiers for demo only
@@ -7,7 +10,14 @@ var users = {
     john: {
         id: 'john',
         password: 'password',
-        name: 'John Doe'
+        name: 'John Doe',
+        lastLoggedIn: null
+    },
+    admin: {
+        id: 'admin',
+        password: 'admin',
+        name: 'Administrator',
+        lastLoggedIn: null
     }
 };
 
@@ -15,6 +25,7 @@ var home = function (request, reply) {
 
     reply('<html><head><title>Login page</title></head><body><h3>Welcome '
       + request.auth.credentials.name
+      + ' : ' + moment.unix(request.auth.credentials.lastLoggedIn).format("MM/DD/YYYY")
       + '!</h3><br/><form method="get" action="/logout">'
       + '<input type="submit" value="Logout">'
       + '</form></body></html>');
@@ -37,7 +48,12 @@ var login = function (request, reply) {
             message = 'Missing username or password';
         }
         else {
+            if (users[request.payload.username]) {
+                users[request.payload.username].lastLoggedIn = moment().utc().unix();
+            }
+
             account = users[request.payload.username];
+            console.log(account);
             if (!account ||
                 account.password !== request.payload.password) {
 
@@ -58,13 +74,17 @@ var login = function (request, reply) {
     }
 
     var sid = String(++uuid);
+    var tmp_key = 'date: ' + moment().utc().unix();
+    sha256.update(String(tmp_key), "utf8");
+    var UniqKey = sha256.digest("base64");
+
     request.server.app.cache.set(sid, { account: account }, 0, function (err) {
 
         if (err) {
             reply(err);
         }
 
-        request.auth.session.set({ sid: sid });
+        request.auth.session.set({ sid: sid , MyKey: UniqKey});
         return reply.redirect('/');
     });
 };
@@ -112,6 +132,6 @@ server.pack.register(require('../'), function (err) {
 
     server.start(function () {
 
-        console.log('Server ready');
+        console.log('Server ready' + server.info.uri);
     });
 });
