@@ -1,7 +1,7 @@
 var Hapi = require('hapi');
 var moment = require('moment');
 var crypto = require("crypto");
-
+var cookie_name = 'site_cookie';
 
 var uuid = 1;       // Use seq instead of proper unique identifiers for demo only
 
@@ -52,7 +52,6 @@ var login = function (request, reply) {
             }
 
             account = users[request.payload.username];
-            console.log(account);
             if (!account ||
                 account.password !== request.payload.password) {
 
@@ -76,14 +75,13 @@ var login = function (request, reply) {
     var tmp_key = String(moment().utc().unix());
 
     var UniqKey = crypto.createHash("md5").update(tmp_key).digest("hex");
-    console.log(UniqKey);
-    request.server.app.cache.set(sid, { account: account }, 0, function (err) {
+    request.server.app.cache.set(sid, { account: account, auth_key: UniqKey }, 0, function (err) {
 
         if (err) {
             reply(err);
         }
 
-        request.auth.session.set({ sid: sid});
+        request.auth.session.set({ sid: sid, auth_key: UniqKey});
         return reply.redirect('/');
     });
 };
@@ -103,7 +101,7 @@ server.pack.register(require('../'), function (err) {
 
     server.auth.strategy('session', 'cookie', true, {
         password: 'secret',
-        cookie: 'sid-example',
+        cookie: cookie_name,
         redirectTo: '/login',
         isSecure: false,
         validateFunc: function (session, callback) {
@@ -118,6 +116,13 @@ server.pack.register(require('../'), function (err) {
                     return callback(null, false);
                 }
 
+                //Validate Authentication Key
+                if (!cached.item.auth_key || cached.item.auth_key != session.auth_key){
+                    return callback('Wrong Auth Key', false);
+                }
+
+                console.log(cached);
+                console.log(session);
                 return callback(null, true, cached.item.account)
             })
         }
