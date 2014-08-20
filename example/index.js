@@ -1,5 +1,7 @@
 var Hapi = require('hapi');
-
+var moment = require('moment');
+var crypto = require("crypto");
+var cookie_name = 'site_cookie';
 
 var uuid = 1;       // Use seq instead of proper unique identifiers for demo only
 
@@ -13,6 +15,12 @@ var users = {
         id: 'doron',
         password: 'doron',
         name: 'Doron Segal'
+    },
+    admin: {
+        id: 'admin',
+        password: 'admin',
+        name: 'Administrator',
+        lastLoggedIn: null
     }
 };
 
@@ -33,6 +41,7 @@ handlers.home = function (request, reply) {
 
     reply('<html><head><title>Login page</title></head><body><h3>Welcome '
       + request.auth.credentials.name
+      + ' : ' + moment.unix(request.auth.credentials.lastLoggedIn).format("MM/DD/YYYY")
       + '!</h3><br/><form method="get" action="/logout">'
       + '<input type="submit" value="Logout">'
       + '</form></body></html>');
@@ -55,6 +64,10 @@ var login = function (request, reply) {
             message = 'Missing username or password';
         }
         else {
+            if (users[request.payload.username]) {
+                users[request.payload.username].lastLoggedIn = moment().utc().unix();
+            }
+
             account = users[request.payload.username];
             if (!account ||
                 account.password !== request.payload.password) {
@@ -76,13 +89,16 @@ var login = function (request, reply) {
     }
 
     var sid = String(++uuid);
-    request.server.app.cache.set(sid, { account: account }, 0, function (err) {
+    var tmp_key = String(moment().utc().unix());
+
+    var UniqKey = crypto.createHash("md5").update(tmp_key).digest("hex");
+    request.server.app.cache.set(sid, { account: account, auth_key: UniqKey }, 0, function (err) {
 
         if (err) {
             reply(err);
         }
 
-        request.auth.session.set({ sid: sid });
+        request.auth.session.set({ sid: sid, auth_key: UniqKey});
         return reply.redirect('/');
     });
 };
@@ -102,7 +118,7 @@ server.pack.register(require('../'), function (err) {
 
     server.auth.strategy('session', 'cookie', true, {
         password: 'secret',
-        cookie: 'sid-example',
+        cookie: cookie_name,
         redirectTo: '/login',
         isSecure: false,
         validateFunc: function (session, callback) {
@@ -117,6 +133,13 @@ server.pack.register(require('../'), function (err) {
                     return callback(null, false);
                 }
 
+                //Validate Authentication Key
+                if (!cached.item.auth_key || cached.item.auth_key != session.auth_key){
+                    return callback('Wrong Auth Key', false);
+                }
+
+                console.log(cached);
+                console.log(session);
                 return callback(null, true, cached.item.account)
             })
         }
@@ -153,7 +176,6 @@ server.pack.register(require('../'), function (err) {
     ]);
 
     server.start(function () {
-
-        console.log('Server ready');
+        console.log('Server ready' + server.info.uri);
     });
 });
