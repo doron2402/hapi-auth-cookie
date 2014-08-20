@@ -34,8 +34,8 @@ handlers.profile = function(request, reply) {
     if (!request.auth.isAuthenticated) {
         return reply.redirect('/');
     }
-
-    var UniqUserId = crypto.createHash("md5").update(request.auth.credentials.id).digest("hex");
+    var user_tmp = String(request.auth.credentials.id);
+    var UniqUserId = crypto.createHash("md5").update(user_tmp).digest("hex");
     redis_client.get(UniqUserId, function(err, result) {
 	   console.log('getting from redis using id: ' + request.auth.credentials.id);
     	if (err) {
