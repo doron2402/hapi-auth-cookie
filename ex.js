@@ -106,7 +106,8 @@ var login = function (request, reply) {
     var tmp_key = String(moment().utc().unix());
 
     var UniqKey = crypto.createHash("md5").update(tmp_key).digest("hex");
-    var UniqUserId = crypto.createHash("md5").update(request.payload.username.id).digest("hex");
+    var tmp_username = String(request.payload.username);
+    var UniqUserId = crypto.createHash("md5").update(tmp_username).digest("hex");
     redis_client.set(UniqUserId, UniqKey); //set value in redis
     request.server.app.cache.set(UniqUserId, { account: account, auth_key: UniqKey }, 0, function (err) {
 
