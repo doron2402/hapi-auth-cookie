@@ -53,7 +53,7 @@ handlers.profile = function(request, reply) {
 };
 
 handlers.home = function (request, reply) {
-
+    console.log('hpme....');
     reply('<html><head><title>Login page</title></head><body><h3>Welcome '
       + request.auth.credentials.name
       + ' : ' + moment.unix(request.auth.credentials.lastLoggedIn).format("MM/DD/YYYY")
@@ -108,16 +108,17 @@ var login = function (request, reply) {
     var UniqKey = crypto.createHash("md5").update(tmp_key).digest("hex");
     var tmp_username = String(request.payload.username);
     var UniqUserId = crypto.createHash("md5").update(tmp_username).digest("hex");
-    redis_client.set(UniqUserId, UniqKey); //set value in redis
-    request.server.app.cache.set(UniqUserId, { account: account, auth_key: UniqKey }, 0, function (err) {
+    redis_client.set(UniqUserId, UniqKey, function(err, res) {
 
-        if (err) {
-            reply(err);
-        }
+        request.server.app.cache.set(UniqUserId, { account: account, auth_key: UniqKey }, 0, function (err) {
+            if (err) {
+                reply(err);
+            }
 
-        request.auth.session.set({ sid: UniqUserId, auth_key: UniqKey});
-        return reply.redirect('/');
-    });
+            request.auth.session.set({ sid: UniqUserId, auth_key: UniqKey});
+            return reply.redirect('/');
+        });
+    }); //set value in redis
 };
 
 handlers.logout = function (request, reply) {
@@ -140,7 +141,7 @@ server.pack.register(require('./index.js'), function (err) {
         isSecure: false,
         validateFunc: function (session, callback) {
 
-            cache.get(session.UniqUserId, function (err, cached) {
+            cache.get(session.sid, function (err, cached) {
 
                 if (err) {
                     return callback(err, false);
