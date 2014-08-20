@@ -8,10 +8,28 @@ var users = {
         id: 'john',
         password: 'password',
         name: 'John Doe'
+    },
+    doron: {
+        id: 'doron',
+        password: 'doron',
+        name: 'Doron Segal'
     }
 };
 
-var home = function (request, reply) {
+var handlers = {};
+handlers.profile = function(request, reply) {
+    if (!request.auth.isAuthenticated) {
+        return reply.redirect('/');
+    }
+
+    return reply('<html><head><title>Profile | '
+      + request.auth.credentials.name
+      + '</title></head><body><h3>Welcome '
+      + request.auth.credentials.name
+      + '</h3><br/></body></html>');
+};
+
+handlers.home = function (request, reply) {
 
     reply('<html><head><title>Login page</title></head><body><h3>Welcome '
       + request.auth.credentials.name
@@ -69,7 +87,7 @@ var login = function (request, reply) {
     });
 };
 
-var logout = function (request, reply) {
+handlers.logout = function (request, reply) {
 
     request.auth.session.clear();
     return reply.redirect('/');
@@ -105,9 +123,33 @@ server.pack.register(require('../'), function (err) {
     });
 
     server.route([
-        { method: 'GET', path: '/', config: { handler: home } },
-        { method: ['GET', 'POST'], path: '/login', config: { handler: login, auth: { mode: 'try' }, plugins: { 'hapi-auth-cookie': { redirectTo: false } } } },
-        { method: 'GET', path: '/logout', config: { handler: logout } }
+        {   method: 'GET', path: '/',
+            config: { handler: handlers.home }
+        },{
+            method: ['GET', 'POST'],
+            path: '/login',
+            config: {
+                handler: login,
+                auth: { mode: 'try' },
+                plugins: {
+                    'hapi-auth-cookie': {
+                        redirectTo: false
+                    }
+                }
+            }
+        },{
+            method: 'GET',
+            path: '/logout',
+            config: {
+                handler:  handlers.logout
+            }
+        },{
+            method: 'GET',
+            path: '/profile',
+            config: {
+                handler: handlers.profile
+            }
+        }
     ]);
 
     server.start(function () {
