@@ -3,6 +3,7 @@ var moment = require('moment');
 var crypto = require("crypto");
 var redis = require("redis");
 var redis_client = redis.createClient();
+var util = require('util');
 
 redis_client.on("error", function (err) {
     console.log("Error " + err);
@@ -28,27 +29,33 @@ var users = {
         lastLoggedIn: null
     }
 };
-
-var handlers = {};
-handlers.profile = function(request, reply) {
+var validateAuth = function(request, reply, cb) {
     if (!request.auth.isAuthenticated) {
         return reply.redirect('/');
     }
-    var user_tmp = String(request.auth.credentials.id);
-    var UniqUserId = crypto.createHash("md5").update(user_tmp).digest("hex");
-    redis_client.get(UniqUserId, function(err, result) {
-	   console.log('getting from redis using id: ' + request.auth.credentials.id);
-    	if (err) {
-            console.log(err);
+     var user_tmp = String(request.auth.credentials.id);
+     var UniqUserId = crypto.createHash("md5").update(user_tmp).digest("hex");
+     redis_client.get(UniqUserId, function(err, result) {
+        if (err || !result) {
             return reply.redirect('/');
         }
+        //validate result for UA and auth_key
+        var res = JSON.parse(result);
+        if (res.ua != request.headers['user-agent'] || res.key != request.state.site_cookie.auth_key) {
+            return reply.redirect('/');
+        }
+        return cb(err,result);
+    });
+};
 
-       console.log(result);
-	   return reply('<html><head><title>Profile | '
-      	+ request.auth.credentials.name
-      	+ '</title></head><body><h3>Welcome '
-      	+ request.auth.credentials.name
-      	+ '</h3><br/></body></html>');
+var handlers = {};
+handlers.profile = function(request, reply) {
+    validateAuth(request, reply, function(err, result) {
+       return reply('<html><head><title>Profile | '
+        + request.auth.credentials.name
+        + '</title></head><body><h3>Welcome '
+        + request.auth.credentials.name
+        + '</h3><br/></body></html>');
     });
 };
 
@@ -108,7 +115,8 @@ var login = function (request, reply) {
     var UniqKey = crypto.createHash("md5").update(tmp_key).digest("hex");
     var tmp_username = String(request.payload.username);
     var UniqUserId = crypto.createHash("md5").update(tmp_username).digest("hex");
-    redis_client.set(UniqUserId, UniqKey, function(err, res) {
+    var tmp_json = JSON.stringify({key: UniqKey, ua: request.headers['user-agent']});
+    redis_client.set(UniqUserId, tmp_json, function(err, res) {
 
         request.server.app.cache.set(UniqUserId, { account: account, auth_key: UniqKey }, 0, function (err) {
             if (err) {
