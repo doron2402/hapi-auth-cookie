@@ -8,11 +8,7 @@ redis_client.on("error", function (err) {
     console.log("Error " + err);
 });
 
-
-
 var cookie_name = 'site_cookie';
-
-var uuid = 1;       // Use seq instead of proper unique identifiers for demo only
 
 var users = {
     john: {
@@ -38,13 +34,17 @@ handlers.profile = function(request, reply) {
     if (!request.auth.isAuthenticated) {
         return reply.redirect('/');
     }
-   
-   
-    redis_client.get(request.auth.credentials.id, function(err, result){
-	console.log('getting from redis using id: ' + request.auth.credentials.id);
-	if (err) { console.log(err); }
-	console.log(result);
-	return reply('<html><head><title>Profile | '
+
+    var UniqUserId = crypto.createHash("md5").update(request.auth.credentials.id).digest("hex");
+    redis_client.get(UniqUserId, function(err, result) {
+	   console.log('getting from redis using id: ' + request.auth.credentials.id);
+    	if (err) {
+            console.log(err);
+            return reply.redirect('/');
+        }
+
+       console.log(result);
+	   return reply('<html><head><title>Profile | '
       	+ request.auth.credentials.name
       	+ '</title></head><body><h3>Welcome '
       	+ request.auth.credentials.name
@@ -65,14 +65,7 @@ handlers.home = function (request, reply) {
 var login = function (request, reply) {
 
     if (request.auth.isAuthenticated) {
-
-        redis_client.get(request.auth.credentials.id, function(err, ret) {
-            console.log('err');
-            console.log(err);
-            console.log('ret');
-            console.log(ret);
-	    return reply.redirect('/');
-        });
+        return reply.redirect('/');
     }
 
     var message = '';
@@ -110,18 +103,18 @@ var login = function (request, reply) {
             + '<input type="submit" value="Login"></form></body></html>');
     }
 
-    var sid = String(++uuid);
     var tmp_key = String(moment().utc().unix());
 
     var UniqKey = crypto.createHash("md5").update(tmp_key).digest("hex");
-    redis_client.set(account.id, UniqKey); //set value in redis
-    request.server.app.cache.set(sid, { account: account, auth_key: UniqKey }, 0, function (err) {
+    var UniqUserId = crypto.createHash("md5").update(request.payload.username.id).digest("hex");
+    redis_client.set(UniqUserId, UniqKey); //set value in redis
+    request.server.app.cache.set(UniqUserId, { account: account, auth_key: UniqKey }, 0, function (err) {
 
         if (err) {
             reply(err);
         }
 
-        request.auth.session.set({ sid: sid, auth_key: UniqKey});
+        request.auth.session.set({ sid: UniqUserId, auth_key: UniqKey});
         return reply.redirect('/');
     });
 };
@@ -146,7 +139,7 @@ server.pack.register(require('./index.js'), function (err) {
         isSecure: false,
         validateFunc: function (session, callback) {
 
-            cache.get(session.sid, function (err, cached) {
+            cache.get(session.UniqUserId, function (err, cached) {
 
                 if (err) {
                     return callback(err, false);
