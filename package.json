@@ -18,7 +18,9 @@
   "dependencies": {
     "boom": "2.x.x",
     "hoek": "2.x.x",
-    "moment": "~2.7.0"
+    "moment": "~2.7.0",
+    "redis": "~0.12.1",
+    "hiredis": "~0.1.17"
   },
   "peerDependencies": {
     "hapi": ">=2.x.x"

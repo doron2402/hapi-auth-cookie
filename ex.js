@@ -38,12 +38,18 @@ handlers.profile = function(request, reply) {
     if (!request.auth.isAuthenticated) {
         return reply.redirect('/');
     }
-
-    return reply('<html><head><title>Profile | '
-      + request.auth.credentials.name
-      + '</title></head><body><h3>Welcome '
-      + request.auth.credentials.name
-      + '</h3><br/></body></html>');
+   
+   
+    redis_client.get(request.auth.credentials.id, function(err, result){
+	console.log('getting from redis using id: ' + request.auth.credentials.id);
+	if (err) { console.log(err); }
+	console.log(result);
+	return reply('<html><head><title>Profile | '
+      	+ request.auth.credentials.name
+      	+ '</title></head><body><h3>Welcome '
+      	+ request.auth.credentials.name
+      	+ '</h3><br/></body></html>');
+    });
 };
 
 handlers.home = function (request, reply) {
@@ -60,13 +66,13 @@ var login = function (request, reply) {
 
     if (request.auth.isAuthenticated) {
 
-        redis_client.get(request.auth.credentials.id, function(err, reply) {
+        redis_client.get(request.auth.credentials.id, function(err, ret) {
             console.log('err');
             console.log(err);
-            console.log('reply');
-            console.log(reply);
+            console.log('ret');
+            console.log(ret);
+	    return reply.redirect('/');
         });
-        return reply.redirect('/');
     }
 
     var message = '';
